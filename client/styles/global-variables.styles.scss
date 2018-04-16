@@ -2,13 +2,13 @@
 /* MEANSTACK variables */
 $bootstrap-sass-asset-helper: false !default;
 
-//
 // Variables
 // --------------------------------------------------
 
 //Paths
-$fa-font-path:        "/bower_components/font-awesome/fonts" !default;
-$icon-font-path: if($bootstrap-sass-asset-helper, "bootstrap/", "bootstrap-sass/assets/fonts/bootstrap/") !default;
+$fa-font-path:        "/components/font-awesome/fonts" !default;
+$icon-font-path: if($bootstrap-sass-asset-helper, "bootstrap/", "/components/bootstrap-sass/assets/fonts/bootstrap/") !default;
+
 
 //== Colors
 //## Gray and brand colors for use across Bootstrap.
@@ -25,6 +25,10 @@ $brand-success:         #87E14B !default;/* branded green */
 $brand-info:            #5bc0de !default;
 $brand-warning:         #f0ad4e !default;
 $brand-danger:          #DE1F17 !default;/* branded red */
+
+$meanstack-blue:        #4a90e2;
+$meanstack-grey:        #333a37;
+$meanstack-red:         #de1f17;
 
 
 //== Scaffolding

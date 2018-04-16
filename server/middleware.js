@@ -1,95 +1,102 @@
+exports.checkAuthenticated = checkAuthenticated
+exports.isAuthenticated = isAuthenticated
+exports.isAuthorized = isAuthorized
+exports.hasRole = hasRole
+exports.isAdmin = isAdmin
+
 var _ = require('lodash')
-var jwt = require('jsonwebtoken')
-var settings = require('./../configs/settings.js').get()
-var mongoose = require('mongoose')
+var debug = require('debug')('meanstackjs:middleware')
+var tokenAPI = require('./token.js')
 
-function findUser (id, cb) {
-  var User = mongoose.model('users')
-  User.findOne({
-    _id: id
-  }, '-password', function (err, user) {
-    if (err || !user) return cb(null)
-    cb(user)
-  })
-}
-
-/**
- * Login Required middleware.
- */
-function isAuthenticated (req, res, next) {
+function checkAuthenticated (req, cb) {
+  debug('middleware: checkAuthenticated')
+  var token = req.headers.authorization || req.query.token || req.body.token // || req.headers['x-access-token']
   if (req.isAuthenticated()) {
-    return next()
+    return cb()
+  } else if (token) {
+    tokenAPI.checkKey(token, function (error, user) {
+      if (error) return cb(error)
+      req.user = user
+      return cb()
+    })
   } else {
-    return res.status(401).send({
-      success: false, msg: 'User needs to re-authenticated'
+    return cb({
+      success: false,
+      message: 'User needs to authenticated'
     })
   }
 }
-function isMongoId (req, res, next) {
-  if ((_.size(req.params) === 1) && (!mongoose.Types.ObjectId.isValid(_.values(req.params)[0]))) {
-    return res.status(500).send({success: false, msg: 'Parameter passed is not a valid Mongo ObjectId'})
-  }
-  next()
+
+function isAuthenticated (req, res, next) {
+  debug('middleware: isAuthenticated')
+  checkAuthenticated(req, function (error) {
+    if (error) return res.status(401).send(error)
+    return next()
+  })
 }
 
-function verify (req, res, next) {
-  var User = mongoose.model('users')
-  try {
-    var token = getToken(req.headers)
-    if (token) {
-      jwt.verify(token, settings.jwt.secret, function (err, decoded) {
-        if (err) {
-          switch (err.name) {
-            case 'TokenExpiredError':
-              res.status(401).send({
-                success: false,
-                msg: 'It appears your token has expired'
-              }) // Date(err.expiredAt)
-              break
-            case 'JsonWebTokenError':
-              res.status(401).send({
-                success: false,
-                msg: 'It appears you have invalid signature'
-              })
-              break
-          }
-        } else {
-          User.findOne({
-            email: decoded.email
-          }, function (err, user) {
-            if (err) throw err
-            if (!user) {
-              return res.status(401).send({success: false, msg: 'Authentication failed. User not found.'})
-            } else {
-              next()
-            }
+function isAuthorized (name, extra) {
+  return function (req, res, next) {
+    debug('middleware: isAuthorized')
+    checkAuthenticated(req, function (error) {
+      if (error) return res.status(401).send(error)
+      var user
+      var reqName = req[name]
+      if (extra) {
+        var reqExtra = reqName[extra]
+        reqExtra && reqExtra.user && (user = reqExtra.user)
+      } else {
+        user = reqName.user
+      }
+      if (req.user) {
+        if (user._id.toString() !== req.user._id.toString()) {
+          debug('middleware: is Not Authorized')
+          return next({
+            status: 401,
+            message: 'User is not Authorized'
           })
+        } else {
+          debug('middleware: isAuthenticated')
+          return next()
         }
-      })
-    } else {
-      return res.status(401).send({success: false, msg: 'No token provided.'})
-    }
-  } catch (err) {
-    console.log(err, 'err')
-  }
-}
-function getToken (headers) {
-  if (headers && headers.authorization) {
-    var parted = headers.authorization.split(' ')
-    if (parted.length === 2) {
-      return parted[1]
-    } else {
-      return null
-    }
-  } else {
-    return null
+      } else {
+        debug('middleware: is Not Authorized ')
+        return res.status(401).send({
+          success: false,
+          message: 'User needs to re-authenticated'
+        })
+      }
+    })
   }
 }
 
-module.exports = exports = {
-  findUser: findUser,
-  isAuthenticated: isAuthenticated,
-  isMongoId: isMongoId,
-  verify: verify,
-  getToken: getToken
+function hasRole (role) {
+  return function (req, res, next) {
+    debug('middleware: hasRole')
+    checkAuthenticated(req, function (error) {
+      if (error) return res.status(401).send(error)
+      if (req.user) {
+        if (_.includes(req.user.roles, role)) {
+          return next()
+        }
+      }
+      return res.status(403).send({
+        success: false,
+        message: 'Forbidden'
+      })
+    })
+  }
+}
+
+function isAdmin (req, res, next) {
+  debug('middleware: isAdmin')
+  checkAuthenticated(req, function (error) {
+    if (error) return res.status(401).send(error)
+    if (req.user) {
+      if (_.includes(req.user.roles, 'admin')) {
+        return next()
+      }
+    }
+    return res.status(401).send('User is not authorized')
+  })
 }

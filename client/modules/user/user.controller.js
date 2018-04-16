@@ -5,32 +5,42 @@
     .module('app.user', [])
     .controller('UserController', UserController)
 
-  UserController.$inject = ['$http', 'config', '$location', '$timeout', 'UserFactory', 'logger', 'Upload', '$stateParams']
+  UserController.$inject = ['$scope', '$http', '$cookies', 'config', '$state', '$timeout', 'UserFactory', 'logger', 'Upload', '$stateParams']
+
   /* @ngInject */
-  function UserController ($http, config, $location, $timeout, UserFactory, logger, Upload, $stateParams) {
+  function UserController ($scope, $http, $cookies, config, $state, $timeout, UserFactory, logger, Upload, $stateParams) {
     var vm = this
-    vm.resetCred = vm.editProfile = vm.loginCred = vm.loginError = {}
+    vm.resetCred = vm.editProfile = vm.loginCred = {}
+    vm.UserFactory = UserFactory
+    vm.refreshApiToken = function () {
+      UserFactory.resetApiToken()
+    }
     vm.find = function () {
       vm.editProfile = angular.copy(UserFactory.user)
     }
-    vm.login = function () {
-      UserFactory.login(vm)
+    vm.login = function (validated) {
+      if (validated) UserFactory.login(vm)
+      else logger.warning('Data not valid', vm, 'Login Validation')
     }
-    vm.signup = function () {
-      UserFactory.signup(vm)
+    vm.signup = function (validated) {
+      if (validated) UserFactory.signup(vm)
+      else logger.warning('Data not valid', vm, 'Signup Validation')
     }
-    vm.forgot = function () {
-      UserFactory.forgot(vm)
+    vm.forgot = function (validated) {
+      if (validated) UserFactory.forgot(vm)
+      else logger.warning('Data not valid', vm, 'Forgot Password Validation')
     }
     vm.resetTokenCheck = function () {
       UserFactory.resetTokenCheck(vm)
     }
-    vm.reset = function () {
-      UserFactory.resetpassword(vm)
+    vm.reset = function (validated) {
+      if (validated) UserFactory.resetpassword(vm)
+      else logger.warning('Data not valid', vm, 'Reset Password Validation')
     }
     vm.resetToken = $stateParams.token
-    vm.update = function () {
-      UserFactory.update(vm)
+    vm.update = function (validated) {
+      if (validated) UserFactory.update(vm)
+      else logger.warning('Data not valid', vm, 'Profile Validation')
     }
     vm.upload = function (file) {
       Upload.upload({
@@ -48,7 +58,11 @@
     activate()
 
     function activate () {
-      console.log('Activated UserController View')
+      // Handle redirects
+      $scope.$on('$stateChangeSuccess', function (ev, toState, toParams, fromState, fromParams) {
+        var redirectPath = $state.href(fromState.name, fromParams)
+        $cookies.put('redirect', redirectPath)
+      })
     }
   }
 })()

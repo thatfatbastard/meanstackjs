@@ -1,6 +1,6 @@
 var mongoose = require('mongoose')
 
-var __name__Schema = mongoose.Schema({
+var <%= name %>Schema = mongoose.Schema({
   created: {
     type: Date,
     default: Date.now
@@ -15,8 +15,8 @@ var __name__Schema = mongoose.Schema({
   },
   user: {
     type: mongoose.Schema.ObjectId,
-    ref: 'user'
+    ref: 'users'
   }
 })
 
-module.exports = __name__
+module.exports = <%= name %>Schema

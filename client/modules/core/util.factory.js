@@ -4,19 +4,16 @@
   angular
     .module('app.core')
     .factory('logger', logger)
-    .factory('exception', exception)
     .factory('httpInterceptor', httpInterceptor)
     .factory('noCacheInterceptor', noCacheInterceptor)
 
   logger.$inject = ['$log', 'toastr']
-  exception.$inject = []
-  httpInterceptor.$inject = ['$q', '$location', 'logger']
+  httpInterceptor.$inject = ['$q', '$location', 'logger', '$injector']
   noCacheInterceptor.$inject = []
   /* @ngInject */
   function logger ($log, toastr) {
     var service = {
       showToasts: true,
-
       error: error,
       info: info,
       success: success,
@@ -25,71 +22,66 @@
     }
 
     return service
-    // ///////////////////
 
     function error (message, data, title) {
-      toastr.error(message, title)
+      if (message)toastr.error(message, title)
       $log.error('Error: ' + message, data)
     }
 
     function info (message, data, title) {
-      toastr.info(message, title)
+      if (message)toastr.info(message, title)
       $log.info('Info: ' + message, data)
     }
 
     function success (message, data, title) {
-      toastr.success(message, title)
+      if (message)toastr.success(message, title)
       $log.info('Success: ' + message, data)
     }
 
     function warning (message, data, title) {
-      toastr.warning(message, title)
+      if (message)toastr.warning(message, title)
       $log.warn('Warning: ' + message, data)
     }
   }
-  /* @ngInject */
-  function exception ($q, logger) {
-    var service = {
-      catcher: catcher
-    }
-    return service
-
-    function catcher (message) {
-      return function (e) {
-        var thrownDescription
-        var newMessage
-        if (e.data && e.data.description) {
-          thrownDescription = '\n' + e.data.description
-          newMessage = message + thrownDescription
-        }
-        e.data.description = newMessage
-        logger.error(newMessage)
-        return $q.reject(e)
-      }
-    }
-  }
 
   /* @ngInject */
-  function httpInterceptor ($q, $location, logger) {
+  function httpInterceptor ($q, $location, logger, $injector) {
     return {
       'response': function (response) {
         if (response.status === 402 || response.status === 401) {
-          if (response.data.msg) {
-            logger.error(response.data.msg, response, 'Error')
+          if (response.data.message) {
+            logger.error(response.data.message, response, 'Error: Unauthorized')
           }
-          $location.path('/signin')
+          if (response.data.redirect) $location.path(response.data.redirect || '/signin')
           return $q.reject(response)
         }
-
+        if (response.status === 500 || response.status === 502) {
+          if (response.data.message) {
+            logger.error(response.data.message, response, 'Error: Server error')
+          }
+          if (response.data.redirect) $location.path('/500')
+          // $state.go('500',{data:rejection.data.message})
+          return $q.reject(response)
+        }
         return response || $q.when(response)
       },
 
       'responseError': function (rejection) {
         if (rejection.status === 402 || rejection.status === 401) {
-          if (rejection.data.msg) {
-            logger.error(rejection.data.msg, rejection, 'Error')
+          if (rejection.data.message) {
+            logger.error(rejection.data.message, rejection, 'Error: Unauthorized')
           }
-          $location.url('/signin')
+          if (rejection.data.redirect) $location.url(rejection.data.redirect || '/signin')
+          return $q.reject(rejection)
+        }
+        if (rejection.status === 500 || rejection.status === 502) {
+          if (rejection.data.message) {
+            logger.error(rejection.data.message, rejection, 'Error: Server error')
+          }
+          if (rejection.data.redirect) $location.url('/500')
+          // If you wish to redirect to 500 error page uncomment the line out below
+          // http://stackoverflow.com/a/20230786 - use injector stackoverflow
+          // $injector.get('$state').go('500', {error: rejection.data})
           return $q.reject(rejection)
         }
         return $q.reject(rejection)

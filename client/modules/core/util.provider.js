@@ -8,11 +8,10 @@
     .config(config)
 
   routerHelperProvider.$inject = ['$locationProvider', '$stateProvider', '$urlRouterProvider']
+
   /* @ngInject */
   function routerHelperProvider ($locationProvider, $stateProvider, $urlRouterProvider) {
-    /* jshint validthis:true */
     var config = {
-      docTitle: undefined,
       resolveAlways: {}
     }
 
@@ -23,9 +22,11 @@
     }
 
     this.$get = RouterHelper
-    RouterHelper.$inject = ['$location', '$rootScope', '$state', 'logger']
+
+    RouterHelper.$inject = ['$rootScope', '$state', 'logger', '$location', '$http']
+
     /* @ngInject */
-    function RouterHelper ($location, $rootScope, $state, logger) {
+    function RouterHelper ($rootScope, $state, logger, $location, $http) {
       var handlingStateChangeError = false
       var hasOtherwise = false
       var stateCounts = {
@@ -61,50 +62,54 @@
         // Provide an exit clause if it tries to do it twice.
         $rootScope.$on('$stateChangeError',
           function (event, toState, toParams, fromState, fromParams, error) {
-            if (handlingStateChangeError) {
-              return
-            }
+            if (handlingStateChangeError) return
+
             stateCounts.errors++
             handlingStateChangeError = true
             var destination = (toState &&
               (toState.title || toState.name || toState.loadedTemplateUrl)) ||
               'unknown target'
-            var msg = 'Error routing to ' + destination + '. ' +
-              (error.data || '') + '. <br/>' + (error.statusText || '') +
-              ': ' + (error.status || '')
-            logger.warning(msg, [toState])
-            $location.url('/')
+            var message = 'Error routing to ' + destination + '. '
+            if (error.data && error.statusText) {
+              message += (error.data || '') + '. \n' + (error.statusText || '') +
+                ': ' + (error.status || '')
+            }
+
+            logger.warning(message, [toState])
+            $state.go('index')
           }
         )
       }
 
       function init () {
         handleRoutingErrors()
-        updateDocTitle()
+        setupSeo()
+        updateSeo()
       }
 
       function getStates () {
         return $state.get()
       }
 
-      function updateDocTitle () {
+      function setupSeo () {
         $rootScope.$on('$stateChangeSuccess',
           function (event, toState, toParams, fromState, fromParams) {
+            updateSeo()
             stateCounts.changes++
             handlingStateChangeError = false
-            var title = config.docTitle + ' ' + (toState.title || '')
-            $rootScope.title = title // data bind to <title>
           }
         )
+      }
+
+      function updateSeo () {
+        $http.get('/api/seo' + $location.$$url).then(function (success) {
+          $rootScope.seo = success.data
+        })
       }
     }
   }
 
-  /**
-   * Must configure the exception handling
-   */
   function exceptionHandlerProvider () {
-    /* jshint validthis:true */
     this.config = {
       appErrorPrefix: undefined
     }
@@ -119,42 +124,15 @@
   }
 
   config.$inject = ['$provide']
-
-  /**
-   * Configure by setting an optional string value for appErrorPrefix.
-   * Accessible via config.appErrorPrefix (via config value).
-   * @param  {Object} $provide
-   */
-  /* @ngInject */
   function config ($provide) {
     $provide.decorator('$exceptionHandler', extendExceptionHandler)
   }
 
   extendExceptionHandler.$inject = ['$delegate', 'exceptionHandler', 'logger']
-
-  /**
-   * Extend the $exceptionHandler service to also display a toast.
-   * @param  {Object} $delegate
-   * @param  {Object} exceptionHandler
-   * @param  {Object} logger
-   * @return {Function} the decorated $exceptionHandler service
-   */
   function extendExceptionHandler ($delegate, exceptionHandler, logger) {
     return function (exception, cause) {
-      var appErrorPrefix = exceptionHandler.config.appErrorPrefix || ''
-      var errorData = {exception: exception, cause: cause}
-      exception.message = appErrorPrefix + exception.message
       $delegate(exception, cause)
-      /**
-       * Could add the error to a service's collection,
-       * add errors to $rootScope, log errors to remote web server,
-       * or log locally. Or throw hard. It is entirely up to you.
-       * throw exception
-       *
-       * @example
-       *     throw { message: 'error message we added' }
-       */
-      logger.error(exception.message, errorData)
+      logger.error(exception.message || exception, {exception: exception, cause: cause})
     }
   }
 })()
