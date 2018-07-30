@@ -21,6 +21,15 @@
           controller: 'IndexController',
           controllerAs: 'vm'
         }
+      },
+      {
+        state: 'aboutmsjs',
+        config: {
+          url: '/',
+          templateUrl: 'modules/index/aboutmsjs.view.html',
+          controller: 'IndexController',
+          controllerAs: 'vm'
+        }
       }
     ]
   }
